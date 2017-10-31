@@ -1,3 +1,7 @@
+import math
+import algo
+import random
+
 windowSize = 17 #input("Please input window size (odd numbers only)")
 freqDict = dict() #dictionary mapping codons to their frequencies
 mapDict = dict() #dictionary mapping codons to amino acid
@@ -13,6 +17,99 @@ mapDict = {'TCA': 'S', 'AAT': 'N', 'TGG': 'W', 'GAT': 'D', 'GAA': 'E', 'TTC': 'F
            'ACA': 'T', 'AAC': 'N', 'GGT': 'G', 'AGC': 'S', 'CGG': 'R', 'TAG': '*', 'CGC': 'R',
            'AGT': 'S', 'CTA': 'L', 'CAA': 'Q', 'CTG': 'L', 'GGA': 'G', 'TGT': 'C', 'TAC': 'Y',
            'GAC': 'D'}
+
+
+def calculateMinMax(sequence, aaFreqDict, freqDict, mapDict, windowSize):
+    freqDict = freqDict
+    aaFreqDict = aaFreqDict
+    windowSize = windowSize
+    mapDict = mapDict
+    codonSeq = sequence
+    minMaxValues = []
+    
+    
+    for i in range(int(windowSize/2)):
+        minMaxValues.append(0)
+    
+    #Using the specified sliding window size (windowSize/2 - 1 on either side of the central codon), min/max is calculated
+    for i in range(len(codonSeq)-windowSize+1):
+        window = codonSeq[i:i+windowSize] #list of the codons in the current window
+
+        Actual = 0.0     #average of the actual codon frequencies
+        Max = 0.0        #average of the min codon frequencies
+        Min = 0.0        #average of the max codon frequencies
+        Avg = 0.0        #average of the averages of all the frequencies associated with each amino acid
+
+        #Sum the frequencies
+        for codon in window:
+            frequencies = aaFreqDict[mapDict[codon]] #list of all frequencies associated with the amino acid this codon encodes
+
+            Actual += freqDict[codon]
+            Max += max(frequencies)
+            Min += min(frequencies)
+            Avg += sum(frequencies)/len(frequencies)
+
+        #Divide by the window size to get the averages
+        Actual = Actual/windowSize
+        Max = Max/windowSize
+        Min = Min/windowSize
+        Avg = Avg/windowSize
+
+        percentMax = ((Actual-Avg)/(Max-Avg))*100
+        percentMin = ((Avg-Actual)/(Avg-Min))*100
+
+        if(percentMax >= 0):
+            minMaxValues.append(round(percentMax,2))
+        else:
+            minMaxValues.append(round(-percentMin,2))
+
+    #fills in values for codons where window size makes min/max unable to be calculated
+    for i in range(int(windowSize/2)):
+        minMaxValues.append(0)
+
+    return minMaxValues
+
+def sign(a):
+	return (1+a)/(1+abs(a))
+
+def fitness(minMaxValues,aaFreqDict, freqDict, mapDict, windowSize):
+	def g(solution):
+		nowvals = calculateMinMax(solution.dna(),aaFreqDict, freqDict, mapDict, windowSize)
+		sum_error = 0
+		maxval = 0
+		for k in range(0,len(nowvals)):
+			val = abs(nowvals[k] - minMaxValues[k])
+			if k > 1 and not sign(minMaxValues[k] - minMaxValues[k-1]) == sign(nowvals[k]-nowvals[k-1]):
+				sum_error += 100*val
+			else:
+				sum_error += val
+			if val > maxval:
+				maxval = val
+		return sum_error + maxval
+	return g
+def mmin(a):
+	p = (2**32,0)
+	for y in a:
+		if y[0] < p[0]:
+			p = y
+	return p
+def worst_genes(minMaxValues, aaFreqDict, freqDict, MapDict, WindowSize):
+	def k(solution):
+		nowvals = calculateMinMax(solution.dna(),aaFreqDict, freqDict, mapDict,windowSize)
+		worst = [(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0)]
+		for k in range(0,len(nowvals)):
+			sm = mmin(worst)
+			val = abs(nowvals[k] - minMaxValues[k]) 
+			if val > sm[0]:
+				worst.remove(sm)
+				worst.append((val,k))
+		mworst = set()
+		for k in worst:
+			mval = k[1]
+			for y in range(int(mval-(windowSize/2)),int(mval+(windowSize/2)+1)):
+				mworst.add(y)
+		return list(mworst)
+	return k
 
 speciesDict = {
         'Escherichia_coli' : ['Table contains 22512846 CDSs (6729157102 codons)\n',
@@ -139,56 +236,6 @@ inputDict = {'escherichia coli':'Escherichia_coli', '1': 'Escherichia_coli', 'ca
              '2':'Caenorhabditis_elegans', 'mus musculus':'Mus_musculus', '3': 'Mus_musculus','homo sapien':'Homo_sapien',
              '4':'Homo_sapien', 'saccharomyces cerevisiae':'Saccharomyces_cerevisiae', '5':'Saccharomyces_cerevisiae'}
 
-def calculateMinMax(sequence, aaFreqDict, freqDict, mapDict, windowSize):
-    freqDict = freqDict
-    aaFreqDict = aaFreqDict
-    windowSize = windowSize
-    mapDict = mapDict
-    codonSeq = sequence
-    minMaxValues = []
-    
-    
-    for i in range(int(windowSize/2)):
-        minMaxValues.append(0)
-    
-    #Using the specified sliding window size (windowSize/2 - 1 on either side of the central codon), min/max is calculated
-    for i in range(len(codonSeq)-windowSize+1):
-        window = codonSeq[i:i+windowSize] #list of the codons in the current window
-
-        Actual = 0.0     #average of the actual codon frequencies
-        Max = 0.0        #average of the min codon frequencies
-        Min = 0.0        #average of the max codon frequencies
-        Avg = 0.0        #average of the averages of all the frequencies associated with each amino acid
-
-        #Sum the frequencies
-        for codon in window:
-            frequencies = aaFreqDict[mapDict[codon]] #list of all frequencies associated with the amino acid this codon encodes
-
-            Actual += freqDict[codon]
-            Max += max(frequencies)
-            Min += min(frequencies)
-            Avg += sum(frequencies)/len(frequencies)
-
-        #Divide by the window size to get the averages
-        Actual = Actual/windowSize
-        Max = Max/windowSize
-        Min = Min/windowSize
-        Avg = Avg/windowSize
-
-        percentMax = ((Actual-Avg)/(Max-Avg))*100
-        percentMin = ((Avg-Actual)/(Avg-Min))*100
-
-        if(percentMax >= 0):
-            minMaxValues.append(round(percentMax,2))
-        else:
-            minMaxValues.append(round(-percentMin,2))
-
-    #fills in values for codons where window size makes min/max unable to be calculated
-    for i in range(int(windowSize/2)):
-        minMaxValues.append(0)
-
-    return minMaxValues
-
 print("You may either use one of the following preloaded codon frequency tables")
 for i in range(int(len(speciesList))):
     print(i+1, speciesList[i])
@@ -259,7 +306,7 @@ for line in sequence:
 aaSeq = []
 for codon in codonSeq:
     aaSeq.append(mapDict[codon])
-     
+print(codonSeq)
 minMaxValues = calculateMinMax(codonSeq, aaFreqDict, freqDict, mapDict, windowSize)
 
 usageFile2 = "2" #input("Input species for harmonization: ")
@@ -294,3 +341,22 @@ for line in frequenciesFile2:
             aaFreqDict2[mapDict[line[i]]].append(float(line[i+1]))
             aaMapDict2[mapDict[line[i]]].append(str(line[i] + " " + line[i+1]))
             i+=3
+
+mfitness = fitness(minMaxValues, aaFreqDict2, freqDict2, mapDict, windowSize)
+mworst = worst_genes(minMaxValues, aaFreqDict2, freqDict2, mapDict, windowSize)
+start = [random.choice(algo.rev[algo.mapDict[x]]) for x in codonSeq]
+print(start)
+
+best = algo.run(algo.solution(start),mfitness,mworst,20,100,2000)
+
+print(best)
+
+orig = open('orig.dat','w+')
+for k in range(0,len(minMaxValues)):
+	orig.write("\n"+str(k)+" "+str(minMaxValues[k]))
+orig.close()
+new = open('new.dat','w+')
+newScores = calculateMinMax(best[0],aaFreqDict, freqDict, mapDict, windowSize)
+for k in range(0,len(newScores)):
+	new.write("\n"+str(k)+" "+str(newScores[k]))
+new.close()
