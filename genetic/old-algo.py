@@ -1,12 +1,5 @@
 import random
 import networkx as nx
-import time
-import math
-
-from multiprocessing import Pool
-import dill as pickle
-
-import sys
 
 mapDict = {'TCA': 'S', 'AAT': 'N', 'TGG': 'W', 'GAT': 'D', 'GAA': 'E', 'TTC': 'F', 'CCG': 'P',
            'ACT': 'T', 'GGG': 'G', 'ACG': 'T', 'AGA': 'R', 'TTG': 'L', 'GTC': 'V', 'GCA': 'A',
@@ -24,26 +17,7 @@ for x in mapDict:
     	rev[mapDict[x]] = []
     rev[mapDict[x]].append(x)
 
-primes =[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199]
-
-def factors(num):
-    i = 0
-    a = []
-    while num > 1:
-        if num % primes[i] == 0:
-            num /= primes[i]
-            a.append(primes[i])
-        else:
-            i += 1
-    return a
-
-def mulsum(lst):
-    i = 1
-    for x in lst:
-        i *= x
-    return i
-
-class solution:
+class solution(object):
     def __init__(self,dna):
     	self._dna=dna
     	self._score=0
@@ -69,6 +43,53 @@ class solution:
     def __hash__(self):
                 return hash(tuple(self._dna))
     			
+
+class graph(object):
+        def __init__(self,vert_num):
+            self._graph = [[0 for y in range(vert_num)] for x in range(vert_num)]
+            self._vert_map = {}
+            self._verts = 0
+            self._inv_vert_map = {}
+
+        def num_vert(self):
+            return len(self._graph)
+        def give_vert_obj(self,obj):
+            self._inv_vert_map[self._verts] = obj
+            self._vert_map[obj] = self._verts
+            self._verts += 1
+        def give_edge(self,a,b):
+            if type(a) is int and type(b) is int:
+                self._graph[a][b] = 1
+                self._graph[b][a] = 1
+            else:
+                if not a in self._vert_map:
+                    print("ERROR, ",a," is not in the graph!")
+                if not b in self._vert_map:
+                    print("ERROR, ",b," is not in the graph!")
+                ai = self._vert_map[a]
+                bi = self._vert_map[b]
+                self._graph[ai][bi] = 1
+                self._graph[bi][ai] = 1
+        def get_neighbors(self,a):
+            if not a in self._vert_map:
+                print("ERROR, ",a," IS NOT IN THE GRAPH!")
+            ret = []
+            ai = a if type(a) is int else self._vert_map[a]
+            for k in range(len(self._graph)):
+                if self._graph[ai][k] == 1:
+                    ret.append(self._inv_vert_map[k])
+            return ret
+        def replace_vert(self,old,new):
+            if new in self._vert_map:
+                return False
+            ai = self._vert_map[old]
+            del self._vert_map[old]
+            self._vert_map[new] = ai
+            self._inv_vert_map[ai] = new
+        def get_verts(self):
+            return [key for key in self._vert_map]
+
+
 def breed(a,b,ran_limit=100,prob=0.001):
     if not len(a.dna()) == len(b.dna()):
     	return []
@@ -162,117 +183,105 @@ def avg(a):
     	k +=i
     return k/len(a)
 
-def getNeighbors(graph,ni):
-    a = []
-    for k in ni:
-        a.append(graph.node[k]['sol'])
-    return a
-def getSols(graph):
-    a = []
-    for x in graph.nodes():
-        a.append(graph.node[x]['sol'])
-    return a
-
-def get_best_neighbor(graph,ni):
-    best = 10000000000000000
-    best_sol = None
-    for k in ni:
-        if graph.node[k]['sol'].score() < best:
-            best = graph.node[k]['sol'].score()
-            best_sol = graph.node[k]['sol']
-    return best_sol
-
-def get_rand_neighbor(graph,ni):
-    neigh = []
-    for k in ni:
-        neigh.append(graph.node[k])
-    ret = None if len(neigh) == 0 else random.choice(neigh)['sol']
-    return ret
-
-def multiproc_vertex(tupin):
-    graph = pickle.loads(tupin[0])
-    ve = tupin[1]
-    fitness = pickle.loads(tupin[2])
-    num_kids = tupin[3]
-    mutate_prob = tupin[4]
-    kids = []
-    neighbors_index = graph.neighbors(ve)
-    neighbors = getNeighbors(graph,neighbors_index)
-    for ne in neighbors:
-        #print(graph.node[ne]['sol'])
-        kids = kids + breed(graph.node[ve]['sol'],ne,num_kids,mutate_prob)
-    #rand_neighbor = get_rand_neighbor(graph,neighbors_index)
-    #kids = [] if rand_neighbor is None else breed(rand_neighbor,graph.node[ve]['sol'],num_kids,mutate_prob)
-    for ki in kids:
-        ki.give_score(fitness(ki))
-    kids = sorted(kids,key=lambda x: x.score())
-    #print(kids)
-    if len(kids) > 0 and kids[0].score() < graph.node[ve]['sol'].score():
-        return (ve,kids[0])
 
 
-def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=40):
-    starttime = time.perf_counter()
+def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=20):
     children = get_pool(start,verts)
     for a in children:
         a.give_score(fitness(a))
-    children = sorted(children, key=lambda x: x.score())
+    print("Sorting children, there are: ",len(children))
+    children = sorted(children, key=lambda x: x.score())[:verts]
     #now we need to make the graph
-    lst = factors(verts)
-    graph = nx.complete_graph(verts)
-    #graph = nx.desargues_graph()
-    #graph = nx.dodecahedral_graph()
-    half = math.ceil(len(lst)/2)
-    #graph = nx.windmill_graph(mulsum(lst[:half]),mulsum(lst[half:]))
-    #graph = nx.caveman_graph(mulsum(lst[:half]),mulsum(lst[half:]))
-    #graph = nx.gnp_random_graph(verts,0.1)
-    #graph = nx.erdos_renyi_graph(verts,0.1)
-    #graph = nx.barabasi_albert_graph(verts,int(verts/3))
-    #graph = nx.hypercube_graph(6)
-    #graph = nx.grid_2d_graph(mulsum(lst[:half]),mulsum(lst[half:]))
-    graph = nx.convert_node_labels_to_integers(graph)
-    gattr = {}
-    #print(graph.nodes())
-    for n in graph.nodes():
-        gattr[n] = {'sol':children[n]}
-        #graph.add_node(n,sol=children[n])
-    nx.set_node_attributes(graph,gattr)
+    a = children[0]
+    b = children[1]
+    c = children[2]
+    d = children[3]
+    e = children[4]
+    f = children[5]
+    g = children[6]
+    h = children[7]
+    i = children[8]
+    j = children[9]
+    k = children[10]
+    l = children[11]
+    m = children[12]
+    n = children[13]
+    o = children[14]
+    p = children[15]
+    q = children[16]
+    r = children[17]
+    s = children[18]
+    t = children[19]
+    le_graph = graph(verts)
+    le_graph.give_vert_obj(a)
+    le_graph.give_vert_obj(b)
+    le_graph.give_vert_obj(c)
+    le_graph.give_vert_obj(d)
+    le_graph.give_vert_obj(e)
+    le_graph.give_vert_obj(f)
+    le_graph.give_vert_obj(g)
+    le_graph.give_vert_obj(h)
+    le_graph.give_vert_obj(i)
+    le_graph.give_vert_obj(j)
+    le_graph.give_vert_obj(k)
+    le_graph.give_vert_obj(l)
+    le_graph.give_vert_obj(m)
+    le_graph.give_vert_obj(n)
+    le_graph.give_vert_obj(o)
+    le_graph.give_vert_obj(p)
+    le_graph.give_vert_obj(q)
+    le_graph.give_vert_obj(r)
+    le_graph.give_vert_obj(s)
+    le_graph.give_vert_obj(t)
+    le_graph.give_edge(a,b)
+    le_graph.give_edge(a,j)
+    le_graph.give_edge(a,k)
+    le_graph.give_edge(b,c)
+    le_graph.give_edge(b,l)
+    le_graph.give_edge(c,d)
+    le_graph.give_edge(c,m)
+    le_graph.give_edge(d,e)
+    le_graph.give_edge(d,n)
+    le_graph.give_edge(e,o)
+    le_graph.give_edge(e,f)
+    le_graph.give_edge(f,p)
+    le_graph.give_edge(f,g)
+    le_graph.give_edge(g,q)
+    le_graph.give_edge(g,h)
+    le_graph.give_edge(h,r)
+    le_graph.give_edge(h,i)
+    le_graph.give_edge(i,s)
+    le_graph.give_edge(i,j)
+    le_graph.give_edge(j,t)
+    le_graph.give_edge(k,l)
+    le_graph.give_edge(l,m)
+    le_graph.give_edge(m,n)
+    le_graph.give_edge(n,o)
+    le_graph.give_edge(o,p)
+    le_graph.give_edge(p,q)
+    le_graph.give_edge(q,r)
+    le_graph.give_edge(r,s)
+    le_graph.give_edge(s,t)
+    le_graph.give_edge(t,k)
     #graph now done, sheeesh
     for x in range(num_gen):
-        #replaces=[]
-        nodetupes = []
-        for ve in graph.nodes():
-            nodetupes += [(pickle.dumps(graph),ve,pickle.dumps(fitness),num_kids,mutate_prob)]
-            #kids = []
-            #neighbors_index = graph.neighbors(ve)
-            #neighbors = getNeighbors(graph,neighbors_index)
-            #for ne in neighbors_index:
-            #    kids = kids + breed(graph.node[ve]['sol'],graph.node[ne]['sol'],num_kids,mutate_prob)
-            #rand_neighbor = get_rand_neighbor(graph,neighbors_index)
-            #kids = [] if rand_neighbor is None else breed(rand_neighbor,graph.node[ve]['sol'],num_kids,mutate_prob)
-            #for ki in kids:
-            #    ki.give_score(fitness(ki))
-            #kids = sorted(kids,key=lambda x: x.score())
-            #if len(kids) > 0 and kids[0].score() < graph.node[ve]['sol'].score():
-            #    replaces.append((ve,kids[0]))
-        with Pool(16) as p:
-            replaces = p.map(multiproc_vertex,nodetupes)
-            print(replaces)
+        verts = le_graph.get_verts()
+        replaces=[]
+        for ve in verts:
+            kids = []
+            neighbors = le_graph.get_neighbors(ve)
+            for ne in neighbors:
+                kids = kids + breed(ve,ne,num_kids,mutate_prob)
+            for ki in kids:
+                ki.give_score(fitness(ki))
+            kids = sorted(kids,key=lambda x: x.score())
+            if kids[0].score() < ve.score():
+                replaces.append((ve,kids[0]))
         for rep in replaces:
-            if rep == None:
-                continue
-            insol = False
-            for ve in graph.nodes():
-                if graph.node[ve]['sol'] == rep[1]:
-                    insol = True
-            if not insol:
-                graph.node[rep[0]]['sol']=rep[1]
-        #print("GEN %i "%x,getSols(graph))
-        #nx.set_node_attributes(graph,gattr)
-    best_sol = sorted(getSols(graph),key=lambda x: x.score())[0]
-    endtime = time.perf_counter()
-    #print(endtime-starttime)
-    return (best_sol.dna(),best_sol.score(),endtime-starttime)
+            le_graph.replace_vert(rep[0],rep[1])
+        print("GEN ",x," Current verts: ",le_graph.get_verts())
+    best_sol = sorted(le_graph.get_verts(),key=lambda x: x.score())[0]
+    return (best_sol.dna(),best_sol.score())
 
 
 
@@ -309,7 +318,7 @@ def run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_p
     		if not a in children and i < start_size:
     			children.append(a)
     			i += 1
-    	if len(children) > 0 and children[0].score() < best:
+    	if children[0].score() < best:
     		best = children[0].score()
     		best_sol = children[0]
                 #print children
