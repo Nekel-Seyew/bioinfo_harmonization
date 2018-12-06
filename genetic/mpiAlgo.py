@@ -213,7 +213,7 @@ def multiproc_vertex(tupin):
         return (ve,kids[0])
 
 
-def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=40):
+def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=20):
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     worldsize = comm.Get_size()
@@ -291,7 +291,7 @@ def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mu
         #with Pool(16) as p:
         #    replaces = p.map(multiproc_vertex,nodetupes)
         #    print(replaces)
-        print(replaces)
+        #print(replaces)
         for rep in replaces:
             if rep == None:
                 continue

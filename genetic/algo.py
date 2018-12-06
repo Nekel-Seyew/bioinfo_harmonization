@@ -211,7 +211,7 @@ def multiproc_vertex(tupin):
         return (ve,kids[0])
 
 
-def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=40):
+def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mutate_prob=0.025,verts=20):
     starttime = time.perf_counter()
     children = get_pool(start,verts)
     for a in children:
@@ -219,12 +219,15 @@ def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mu
     children = sorted(children, key=lambda x: x.score())
     #now we need to make the graph
     lst = factors(verts)
-    graph = nx.complete_graph(verts)
+    #graph = nx.complete_graph(verts)
     #graph = nx.desargues_graph()
     #graph = nx.dodecahedral_graph()
     half = math.ceil(len(lst)/2)
-    #graph = nx.windmill_graph(mulsum(lst[:half]),mulsum(lst[half:]))
+    #graph = nx.watts_strogatz_graph(verts,10,0.1)
+    #graph = nx.windmill_graph(mulsum(lst[half:]),mulsum(lst[:half]))
+    graph = nx.windmill_graph(mulsum(lst[:half]),mulsum(lst[half:]))
     #graph = nx.caveman_graph(mulsum(lst[:half]),mulsum(lst[half:]))
+    #graph = nx.caveman_graph(mulsum(lst[half:]),mulsum(lst[:half]))
     #graph = nx.gnp_random_graph(verts,0.1)
     #graph = nx.erdos_renyi_graph(verts,0.1)
     #graph = nx.barabasi_albert_graph(verts,int(verts/3))
@@ -255,16 +258,19 @@ def graph_run(start,fitness,worst_genes,start_size=10,num_kids=10,num_gen=100,mu
             #kids = sorted(kids,key=lambda x: x.score())
             #if len(kids) > 0 and kids[0].score() < graph.node[ve]['sol'].score():
             #    replaces.append((ve,kids[0]))
+        graphsols = set()
         with Pool(16) as p:
             replaces = p.map(multiproc_vertex,nodetupes)
-            print(replaces)
+        for ve in graph.nodes():
+            graphsols.add(graph.node[ve]['sol'])
         for rep in replaces:
             if rep == None:
                 continue
             insol = False
-            for ve in graph.nodes():
-                if graph.node[ve]['sol'] == rep[1]:
-                    insol = True
+            insol = rep[1] in graphsols
+            #for ve in graph.nodes():
+            #    if graph.node[ve]['sol'] == rep[1]:
+            #        insol = True
             if not insol:
                 graph.node[rep[0]]['sol']=rep[1]
         #print("GEN %i "%x,getSols(graph))
